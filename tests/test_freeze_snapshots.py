@@ -28,6 +28,7 @@ To refresh the fixtures after an intentional change, run
 from __future__ import annotations
 
 import json
+import zlib
 import difflib
 from typing import Any
 
@@ -43,16 +44,6 @@ def _ids(snapshots: list[Snapshot]) -> list[str]:
     return [s.name for s in snapshots]
 
 
-def _freeze_to_lines(buf: bytes) -> list[str]:
-    """Render a freeze byte stream to sorted, human-readable lines for diffing."""
-    import zlib
-
-    magic = capa.features.freeze.MAGIC
-    assert buf[: len(magic)] == magic, "missing freeze magic header"
-    doc = json.loads(zlib.decompress(buf[len(magic) :]).decode("utf-8"))
-    return _doc_to_lines(doc)
-
-
 def _doc_to_lines(doc: dict[str, Any]) -> list[str]:
     """
     Render a freeze JSON document to a list of lines suitable for unified-diffing.
@@ -65,9 +56,8 @@ def _doc_to_lines(doc: dict[str, Any]) -> list[str]:
 
 
 def _load_freeze_doc(buf: bytes) -> dict[str, Any]:
-    import zlib
-
     magic = capa.features.freeze.MAGIC
+    assert buf[: len(magic)] == magic, "missing freeze magic header"
     return json.loads(zlib.decompress(buf[len(magic) :]).decode("utf-8"))
 
 
@@ -141,11 +131,13 @@ def _format_mismatch(snapshot: Snapshot, expected: bytes, actual: bytes) -> str:
     if exp_summary != act_summary:
         lines.append("")
         lines.append("feature count delta (expected -> actual):")
-        for key in sorted(set(exp_summary) | set(act_summary)):
+        keys = sorted(set(exp_summary) | set(act_summary))
+        width = max((len(k) for k in keys), default=0)
+        for key in keys:
             e = exp_summary.get(key, 0)
             a = act_summary.get(key, 0)
             if e != a:
-                lines.append(f"  {key:12s}  {e:6d} -> {a:6d}  ({a - e:+d})")
+                lines.append(f"  {key:<{width}s}  {e:6d} -> {a:6d}  ({a - e:+d})")
     else:
         lines.append("")
         lines.append(
