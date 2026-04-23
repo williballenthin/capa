@@ -4,6 +4,7 @@
 
 ### New Features
 - ci: add support for arm64 binary releases
+- tests: add snapshot tests for feature extraction. Regenerates per-sample freeze files and compares them byte-for-byte with committed fixtures under `tests/fixtures/freezes/`, so unintended changes to extractors surface as a test failure with a unified diff. See `tests/fixtures/freezes/README.md` and `scripts/generate-freeze-snapshots.py`.
 
 ### Breaking Changes
 
@@ -30,6 +31,7 @@
 -
 
 ### Bug Fixes
+- dotnetfile: sort namespace features so freeze output is deterministic across runs
 
 ### capa Explorer Web
 
