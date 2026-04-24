@@ -15,17 +15,22 @@
 """
 Data-driven feature snapshot tests.
 
-For every entry in `tests/fixtures/feature-snapshots/manifest.json`, this
+For every entry in `tests/fixtures/snapshots/features/manifest.json`, this
 module regenerates a capa freeze from the corresponding sample via
 `capa.features.freeze.main --reproducible`, compares it byte-for-byte
 against the committed `.frz` file, and on mismatch renders a unified diff
 of the freeze contents so a reviewer can see which features appeared,
 disappeared, or moved.
 
-To refresh a fixture after an intentional change::
+A failing test means capa now extracts different features from the same
+sample than it used to. That can be intentional (you changed an extractor)
+or accidental (an unrelated change perturbed extraction); see the failure
+message for how to update the fixture or investigate.
+
+Refreshing a fixture after an intentional change::
 
     python -m capa.features.freeze --reproducible \\
-        tests/data/<sample> tests/fixtures/feature-snapshots/<name>.frz
+        tests/data/<sample> tests/fixtures/snapshots/features/<name>.frz
 
 The manifest is edited by hand when samples are added or removed.
 """
@@ -101,38 +106,22 @@ def _feature_summary(doc: dict[str, Any]) -> dict[str, int]:
             return f.get("basic_blocks") or f.get("basic blocks") or []
 
         summary["functions"] = len(functions)
-        summary["function features"] = sum(
-            len(f.get("features", [])) for f in functions
-        )
+        summary["function features"] = sum(len(f.get("features", [])) for f in functions)
         summary["basic blocks"] = sum(len(bbs(f)) for f in functions)
-        summary["basic block features"] = sum(
-            len(bb.get("features", [])) for f in functions for bb in bbs(f)
-        )
-        summary["instructions"] = sum(
-            len(bb.get("instructions", [])) for f in functions for bb in bbs(f)
-        )
+        summary["basic block features"] = sum(len(bb.get("features", [])) for f in functions for bb in bbs(f))
+        summary["instructions"] = sum(len(bb.get("instructions", [])) for f in functions for bb in bbs(f))
         summary["instruction features"] = sum(
-            len(i.get("features", []))
-            for f in functions
-            for bb in bbs(f)
-            for i in bb.get("instructions", [])
+            len(i.get("features", [])) for f in functions for bb in bbs(f) for i in bb.get("instructions", [])
         )
     else:
         processes = features.get("processes", [])
         summary["processes"] = len(processes)
         summary["process features"] = sum(len(p.get("features", [])) for p in processes)
         summary["threads"] = sum(len(p.get("threads", [])) for p in processes)
-        summary["thread features"] = sum(
-            len(t.get("features", [])) for p in processes for t in p.get("threads", [])
-        )
-        summary["calls"] = sum(
-            len(t.get("calls", [])) for p in processes for t in p.get("threads", [])
-        )
+        summary["thread features"] = sum(len(t.get("features", [])) for p in processes for t in p.get("threads", []))
+        summary["calls"] = sum(len(t.get("calls", [])) for p in processes for t in p.get("threads", []))
         summary["call features"] = sum(
-            len(c.get("features", []))
-            for p in processes
-            for t in p.get("threads", [])
-            for c in t.get("calls", [])
+            len(c.get("features", [])) for p in processes for t in p.get("threads", []) for c in t.get("calls", [])
         )
 
     return summary
@@ -146,6 +135,8 @@ def _format_mismatch(snapshot: FeatureSnapshot, expected: bytes, actual: bytes) 
         f"  expected freeze: {snapshot.freeze_path}",
         "  actual  freeze:  <regenerated>",
     ]
+    if snapshot.generated_at_commit:
+        lines.append(f"  last regenerated at: {snapshot.generated_at_commit}")
 
     expected_doc = _load_freeze_doc(expected)
     actual_doc = _load_freeze_doc(actual)
@@ -164,9 +155,7 @@ def _format_mismatch(snapshot: FeatureSnapshot, expected: bytes, actual: bytes) 
                 lines.append(f"  {key:<{width}s}  {e:6d} -> {a:6d}  ({a - e:+d})")
     else:
         lines.append("")
-        lines.append(
-            "feature counts match; differences are in feature positions or values."
-        )
+        lines.append("feature counts match; differences are in feature positions or values.")
 
     diff = list(
         difflib.unified_diff(
@@ -184,19 +173,30 @@ def _format_mismatch(snapshot: FeatureSnapshot, expected: bytes, actual: bytes) 
     MAX_DIFF_LINES = 200
     lines.append("")
     if len(diff) > MAX_DIFF_LINES:
-        lines.append(
-            f"unified diff ({len(diff)} lines, truncated to {MAX_DIFF_LINES}):"
-        )
+        lines.append(f"unified diff ({len(diff)} lines, truncated to {MAX_DIFF_LINES}):")
         diff = diff[:MAX_DIFF_LINES]
     else:
         lines.append(f"unified diff ({len(diff)} lines):")
     lines.extend(line.rstrip("\n") for line in diff)
     lines.append("")
+    lines.append("how and when to update this snapshot:")
+    lines.append("  If this change to feature extraction is INTENTIONAL (you edited an extractor):")
+    lines.append("    1. regenerate the fixture:")
     lines.append(
-        "To refresh this fixture after an intentional change, run:\n"
-        f"    python -m capa.features.freeze --reproducible \\\n"
-        f"        {snapshot.sample_path} {snapshot.freeze_path}"
+        f"         python -m capa.features.freeze --reproducible \\\n"
+        f"             {snapshot.sample_path} {snapshot.freeze_path}"
     )
+    lines.append(
+        "    2. update `generated_at_commit` in manifest.json to HEAD "
+        "(the freeze CLI emits a suggested entry at INFO)."
+    )
+    lines.append("  If it is ACCIDENTAL (extraction shifted as a side effect of an unrelated change),")
+    lines.append("    do NOT update the fixture; fix the root cause instead.")
+    if snapshot.generated_at_commit:
+        lines.append(
+            f"  To see what's changed since this fixture was last regenerated:\n"
+            f"         git log {snapshot.generated_at_commit}..HEAD -- capa/"
+        )
     return "\n".join(lines)
 
 
@@ -207,10 +207,7 @@ def test_feature_snapshot(snapshot: FeatureSnapshot):
     `snapshot.freeze` byte-for-byte.
     """
     if not snapshot.sample_path.exists():
-        pytest.skip(
-            f"sample not present: {snapshot.sample_path} "
-            f"(run `git submodule update --init tests/data`)"
-        )
+        pytest.skip(f"sample not present: {snapshot.sample_path} " f"(run `git submodule update --init tests/data`)")
     if not snapshot.freeze_path.exists():
         pytest.fail(f"snapshot fixture missing: {snapshot.freeze_path}")
 
@@ -229,6 +226,4 @@ def test_manifest_is_consistent():
     assert len(names) == len(set(names)), "duplicate snapshot name(s) in manifest"
 
     freezes = [s.freeze for s in _SNAPSHOTS]
-    assert len(freezes) == len(set(freezes)), (
-        "duplicate freeze file name(s) in manifest"
-    )
+    assert len(freezes) == len(set(freezes)), "duplicate freeze file name(s) in manifest"

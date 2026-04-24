@@ -94,9 +94,7 @@ class Address(HashableModel):
             return cls(type=AddressType.PROCESS, value=(a.ppid, a.pid))
 
         elif isinstance(a, capa.features.address.ThreadAddress):
-            return cls(
-                type=AddressType.THREAD, value=(a.process.ppid, a.process.pid, a.tid)
-            )
+            return cls(type=AddressType.THREAD, value=(a.process.ppid, a.process.pid, a.tid))
 
         elif isinstance(a, capa.features.address.DynamicCallAddress):
             return cls(
@@ -104,14 +102,10 @@ class Address(HashableModel):
                 value=(a.thread.process.ppid, a.thread.process.pid, a.thread.tid, a.id),
             )
 
-        elif a == capa.features.address.NO_ADDRESS or isinstance(
-            a, capa.features.address._NoAddress
-        ):
+        elif a == capa.features.address.NO_ADDRESS or isinstance(a, capa.features.address._NoAddress):
             return cls(type=AddressType.NO_ADDRESS, value=None)
 
-        elif isinstance(a, capa.features.address.Address) and not issubclass(
-            type(a), capa.features.address.Address
-        ):
+        elif isinstance(a, capa.features.address.Address) and not issubclass(type(a), capa.features.address.Address):
             raise ValueError("don't use an Address instance directly")
 
         elif isinstance(a, capa.features.address.Address):
@@ -360,9 +354,7 @@ class Freeze(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-def dumps_static(
-    extractor: StaticFeatureExtractor, *, reproducible: bool = False
-) -> str:
+def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = False) -> str:
     """
     serialize the given extractor to a string
 
@@ -462,9 +454,7 @@ def dumps_static(
         base_address=Address.from_capa(extractor.get_base_address()),
         sample_hashes=extractor.get_sample_hashes(),
         flavor="static",
-        extractor=Extractor(
-            name=extractor.__class__.__name__, version=extractor_version
-        ),
+        extractor=Extractor(name=extractor.__class__.__name__, version=extractor_version),
         features=features,
     )  # type: ignore
     # Mypy is unable to recognise `base_address` as an argument due to alias
@@ -472,9 +462,7 @@ def dumps_static(
     return freeze.model_dump_json()
 
 
-def dumps_dynamic(
-    extractor: DynamicFeatureExtractor, *, reproducible: bool = False
-) -> str:
+def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = False) -> str:
     """
     serialize the given extractor to a string
 
@@ -578,9 +566,7 @@ def dumps_dynamic(
         base_address=Address.from_capa(base_addr),
         sample_hashes=extractor.get_sample_hashes(),
         flavor="dynamic",
-        extractor=Extractor(
-            name=extractor.__class__.__name__, version=extractor_version
-        ),
+        extractor=Extractor(name=extractor.__class__.__name__, version=extractor_version),
         features=features,
     )  # type: ignore
     # Mypy is unable to recognise `base_address` as an argument due to alias
@@ -601,26 +587,16 @@ def loads_static(s: str) -> StaticFeatureExtractor:
         base_address=freeze.base_address.to_capa(),
         sample_hashes=freeze.sample_hashes,
         global_features=[f.feature.to_capa() for f in freeze.features.global_],
-        file_features=[
-            (f.address.to_capa(), f.feature.to_capa()) for f in freeze.features.file
-        ],
+        file_features=[(f.address.to_capa(), f.feature.to_capa()) for f in freeze.features.file],
         functions={
             f.address.to_capa(): null.FunctionFeatures(
-                features=[
-                    (fe.address.to_capa(), fe.feature.to_capa()) for fe in f.features
-                ],
+                features=[(fe.address.to_capa(), fe.feature.to_capa()) for fe in f.features],
                 basic_blocks={
                     bb.address.to_capa(): null.BasicBlockFeatures(
-                        features=[
-                            (fe.address.to_capa(), fe.feature.to_capa())
-                            for fe in bb.features
-                        ],
+                        features=[(fe.address.to_capa(), fe.feature.to_capa()) for fe in bb.features],
                         instructions={
                             i.address.to_capa(): null.InstructionFeatures(
-                                features=[
-                                    (fe.address.to_capa(), fe.feature.to_capa())
-                                    for fe in i.features
-                                ]
+                                features=[(fe.address.to_capa(), fe.feature.to_capa()) for fe in i.features]
                             )
                             for i in bb.instructions
                         },
@@ -646,28 +622,18 @@ def loads_dynamic(s: str) -> DynamicFeatureExtractor:
         base_address=freeze.base_address.to_capa(),
         sample_hashes=freeze.sample_hashes,
         global_features=[f.feature.to_capa() for f in freeze.features.global_],
-        file_features=[
-            (f.address.to_capa(), f.feature.to_capa()) for f in freeze.features.file
-        ],
+        file_features=[(f.address.to_capa(), f.feature.to_capa()) for f in freeze.features.file],
         processes={
             p.address.to_capa(): null.ProcessFeatures(
                 name=p.name,
-                features=[
-                    (fe.address.to_capa(), fe.feature.to_capa()) for fe in p.features
-                ],
+                features=[(fe.address.to_capa(), fe.feature.to_capa()) for fe in p.features],
                 threads={
                     t.address.to_capa(): null.ThreadFeatures(
-                        features=[
-                            (fe.address.to_capa(), fe.feature.to_capa())
-                            for fe in t.features
-                        ],
+                        features=[(fe.address.to_capa(), fe.feature.to_capa()) for fe in t.features],
                         calls={
                             c.address.to_capa(): null.CallFeatures(
                                 name=c.name,
-                                features=[
-                                    (fe.address.to_capa(), fe.feature.to_capa())
-                                    for fe in c.features
-                                ],
+                                features=[(fe.address.to_capa(), fe.feature.to_capa()) for fe in c.features],
                             )
                             for c in t.calls
                         },
@@ -697,9 +663,7 @@ def dumps(extractor: FeatureExtractor, *, reproducible: bool = False) -> str:
 
 def dump(extractor: FeatureExtractor, *, reproducible: bool = False) -> bytes:
     """serialize the given extractor to a byte array."""
-    return MAGIC + zlib.compress(
-        dumps(extractor, reproducible=reproducible).encode("utf-8")
-    )
+    return MAGIC + zlib.compress(dumps(extractor, reproducible=reproducible).encode("utf-8"))
 
 
 def is_freeze(buf: bytes) -> bool:
@@ -741,9 +705,7 @@ def main(argv=None):
         argv = sys.argv[1:]
 
     parser = argparse.ArgumentParser(description="save capa features to a file")
-    capa.main.install_common_args(
-        parser, {"input_file", "format", "backend", "os", "signatures"}
-    )
+    capa.main.install_common_args(parser, {"input_file", "format", "backend", "os", "signatures"})
     parser.add_argument("output", type=str, help="Path to output file")
     parser.add_argument(
         "--reproducible",
@@ -765,8 +727,9 @@ def main(argv=None):
     output_path.write_bytes(dump(extractor, reproducible=args.reproducible))
 
     # Log a manifest entry for the feature snapshot tests at INFO level. This
-    # makes it easy to copy/paste into `tests/fixtures/feature-snapshots/manifest.json`
-    # when adding a new fixture.
+    # makes it easy to copy/paste into
+    # `tests/fixtures/snapshots/features/manifest.json` when adding a new
+    # fixture or refreshing an existing one.
     entry: dict[str, str] = {
         "name": output_path.stem,
         "sample": str(args.input_file),
@@ -778,9 +741,23 @@ def main(argv=None):
         entry["backend"] = args.backend
     if args.os and args.os != "auto":
         entry["os"] = args.os
+    commit = _git_head_commit()
+    if commit:
+        entry["generated_at_commit"] = commit
     logger.info("manifest entry: %s", json.dumps(entry))
 
     return 0
+
+
+def _git_head_commit() -> str:
+    """Return the short HEAD commit, or empty string if this isn't a git checkout."""
+    import subprocess
+
+    try:
+        out = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return ""
+    return out.decode("ascii", errors="replace").strip()
 
 
 if __name__ == "__main__":
