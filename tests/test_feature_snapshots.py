@@ -13,16 +13,21 @@
 # limitations under the License.
 
 """
-Data-driven snapshot tests for capa feature extraction.
+Data-driven feature snapshot tests.
 
-For every entry in `tests/fixtures/freezes/manifest.json`, this module
-regenerates a freeze from the corresponding sample, compares its sha256
-against the committed `.frz` file, and — on mismatch — renders a unified
-diff of the freeze contents so a reviewer can see which features appeared,
+For every entry in `tests/fixtures/feature-snapshots/manifest.json`, this
+module regenerates a capa freeze from the corresponding sample via
+`capa.features.freeze.main --reproducible`, compares it byte-for-byte
+against the committed `.frz` file, and on mismatch renders a unified diff
+of the freeze contents so a reviewer can see which features appeared,
 disappeared, or moved.
 
-To refresh the fixtures after an intentional change, run
-`python scripts/generate-freeze-snapshots.py`.
+To refresh a fixture after an intentional change::
+
+    python -m capa.features.freeze --reproducible \\
+        tests/data/<sample> tests/fixtures/feature-snapshots/<name>.frz
+
+The manifest is edited by hand when samples are added or removed.
 """
 
 from __future__ import annotations
@@ -30,27 +35,46 @@ from __future__ import annotations
 import json
 import zlib
 import difflib
+import tempfile
 from typing import Any
+from pathlib import Path
 
 import pytest
 
 import capa.features.freeze
-from tests.snapshot_util import Manifest, Snapshot, generate_freeze_bytes, sha256_hex
+from tests.feature_snapshot_util import Manifest, FeatureSnapshot
 
-_MANIFEST = Manifest.load()
+_SNAPSHOTS = Manifest.load().snapshots
 
 
-def _ids(snapshots: list[Snapshot]) -> list[str]:
+def _ids(snapshots: list[FeatureSnapshot]) -> list[str]:
     return [s.name for s in snapshots]
+
+
+def _regenerate(snapshot: FeatureSnapshot) -> bytes:
+    """Run the freeze CLI against the sample and return the produced bytes."""
+    with tempfile.TemporaryDirectory() as tmp:
+        out_path = Path(tmp) / "out.frz"
+        argv = [str(snapshot.sample_path), str(out_path), "--reproducible"]
+        if snapshot.format is not None:
+            argv += ["-f", snapshot.format]
+        if snapshot.backend is not None:
+            argv += ["-b", snapshot.backend]
+        if snapshot.os is not None:
+            argv += ["--os", snapshot.os]
+        rc = capa.features.freeze.main(argv)
+        if rc != 0:
+            raise RuntimeError(f"capa.features.freeze.main exited with status {rc}")
+        return out_path.read_bytes()
 
 
 def _doc_to_lines(doc: dict[str, Any]) -> list[str]:
     """
     Render a freeze JSON document to a list of lines suitable for unified-diffing.
 
-    We pretty-print the whole document with sorted keys so that field reordering
-    (which is meaningful for features) is preserved while key ordering within
-    objects is normalized.
+    We pretty-print with sorted keys so that field reordering (which is
+    meaningful for features) is preserved while key ordering within objects is
+    normalized.
     """
     return json.dumps(doc, indent=2, sort_keys=True).splitlines(keepends=True)
 
@@ -114,13 +138,13 @@ def _feature_summary(doc: dict[str, Any]) -> dict[str, int]:
     return summary
 
 
-def _format_mismatch(snapshot: Snapshot, expected: bytes, actual: bytes) -> str:
+def _format_mismatch(snapshot: FeatureSnapshot, expected: bytes, actual: bytes) -> str:
     """Build a failure message describing how the freezes differ."""
     lines = [
-        f"freeze snapshot drift for {snapshot.name!r}:",
-        f"  sample:         {snapshot.sample}",
-        f"  expected freeze: {snapshot.freeze_path} (sha256={sha256_hex(expected)})",
-        f"  actual   freeze: <regenerated>     (sha256={sha256_hex(actual)})",
+        f"feature snapshot drift for {snapshot.name!r}:",
+        f"  sample:          {snapshot.sample}",
+        f"  expected freeze: {snapshot.freeze_path}",
+        "  actual  freeze:  <regenerated>",
     ]
 
     expected_doc = _load_freeze_doc(expected)
@@ -155,8 +179,8 @@ def _format_mismatch(snapshot: Snapshot, expected: bytes, actual: bytes) -> str:
     )
 
     # Cap the diff so a wholly-changed snapshot doesn't dump thousands of lines
-    # into the test output — the feature-count summary above is enough for the
-    # common case; run the generator script locally to see the full diff.
+    # into the test output — the feature-count summary is enough for the common
+    # case; regenerate the fixture locally to inspect the full diff.
     MAX_DIFF_LINES = 200
     lines.append("")
     if len(diff) > MAX_DIFF_LINES:
@@ -169,14 +193,15 @@ def _format_mismatch(snapshot: Snapshot, expected: bytes, actual: bytes) -> str:
     lines.extend(line.rstrip("\n") for line in diff)
     lines.append("")
     lines.append(
-        "To refresh fixtures after an intentional change, run:\n"
-        "    python scripts/generate-freeze-snapshots.py"
+        "To refresh this fixture after an intentional change, run:\n"
+        f"    python -m capa.features.freeze --reproducible \\\n"
+        f"        {snapshot.sample_path} {snapshot.freeze_path}"
     )
     return "\n".join(lines)
 
 
-@pytest.mark.parametrize("snapshot", _MANIFEST.snapshots, ids=_ids(_MANIFEST.snapshots))
-def test_freeze_snapshot(snapshot: Snapshot):
+@pytest.mark.parametrize("snapshot", _SNAPSHOTS, ids=_ids(_SNAPSHOTS))
+def test_feature_snapshot(snapshot: FeatureSnapshot):
     """
     Regenerate the freeze for `snapshot.sample` and assert it matches
     `snapshot.freeze` byte-for-byte.
@@ -187,18 +212,10 @@ def test_freeze_snapshot(snapshot: Snapshot):
             f"(run `git submodule update --init tests/data`)"
         )
     if not snapshot.freeze_path.exists():
-        pytest.fail(
-            f"snapshot fixture missing: {snapshot.freeze_path} "
-            f"(run `python scripts/generate-freeze-snapshots.py`)"
-        )
+        pytest.fail(f"snapshot fixture missing: {snapshot.freeze_path}")
 
     expected = snapshot.freeze_path.read_bytes()
-    actual = generate_freeze_bytes(
-        snapshot.sample_path,
-        format=snapshot.format,
-        backend=snapshot.backend,
-        os=snapshot.os,
-    )
+    actual = _regenerate(snapshot)
 
     if actual == expected:
         return
@@ -207,11 +224,11 @@ def test_freeze_snapshot(snapshot: Snapshot):
 
 
 def test_manifest_is_consistent():
-    """Sanity-check that the manifest doesn't contain duplicates or dangling refs."""
-    names = [s.name for s in _MANIFEST.snapshots]
+    """Sanity-check that the manifest doesn't contain duplicates."""
+    names = [s.name for s in _SNAPSHOTS]
     assert len(names) == len(set(names)), "duplicate snapshot name(s) in manifest"
 
-    freezes = [s.freeze for s in _MANIFEST.snapshots]
+    freezes = [s.freeze for s in _SNAPSHOTS]
     assert len(freezes) == len(set(freezes)), (
         "duplicate freeze file name(s) in manifest"
     )
