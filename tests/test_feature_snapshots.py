@@ -49,7 +49,7 @@ import pytest
 import capa.features.freeze
 from tests.feature_snapshot_util import Manifest, FeatureSnapshot
 
-_SNAPSHOTS = Manifest.load().snapshots
+_SNAPSHOTS = Manifest.from_file().snapshots
 
 
 def _ids(snapshots: list[FeatureSnapshot]) -> list[str]:

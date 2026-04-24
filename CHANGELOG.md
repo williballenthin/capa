@@ -4,8 +4,8 @@
 
 ### New Features
 - ci: add support for arm64 binary releases
-- tests: add feature snapshot tests that byte-compare regenerated freezes against committed fixtures under `tests/fixtures/snapshots/features/` to catch unintended extractor changes
-- freeze: add `--reproducible` flag that zeros dynamic header metadata so freeze output is stable across capa versions
+- tests: add feature snapshot tests under `tests/fixtures/snapshots/features/`
+- freeze: add `--reproducible` flag that zeros dynamic header metadata
 
 ### Breaking Changes
 

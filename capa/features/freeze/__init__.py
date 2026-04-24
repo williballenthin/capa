@@ -97,10 +97,7 @@ class Address(HashableModel):
             return cls(type=AddressType.THREAD, value=(a.process.ppid, a.process.pid, a.tid))
 
         elif isinstance(a, capa.features.address.DynamicCallAddress):
-            return cls(
-                type=AddressType.CALL,
-                value=(a.thread.process.ppid, a.thread.process.pid, a.thread.tid, a.id),
-            )
+            return cls(type=AddressType.CALL, value=(a.thread.process.ppid, a.thread.process.pid, a.thread.tid, a.id))
 
         elif a == capa.features.address.NO_ADDRESS or isinstance(a, capa.features.address._NoAddress):
             return cls(type=AddressType.NO_ADDRESS, value=None)
@@ -152,8 +149,7 @@ class Address(HashableModel):
             assert isinstance(pid, int)
             assert isinstance(tid, int)
             return capa.features.address.ThreadAddress(
-                process=capa.features.address.ProcessAddress(ppid=ppid, pid=pid),
-                tid=tid,
+                process=capa.features.address.ProcessAddress(ppid=ppid, pid=pid), tid=tid
             )
 
         elif self.type is AddressType.CALL:
@@ -161,8 +157,7 @@ class Address(HashableModel):
             ppid, pid, tid, id_ = self.value
             return capa.features.address.DynamicCallAddress(
                 thread=capa.features.address.ThreadAddress(
-                    process=capa.features.address.ProcessAddress(ppid=ppid, pid=pid),
-                    tid=tid,
+                    process=capa.features.address.ProcessAddress(ppid=ppid, pid=pid), tid=tid
                 ),
                 id=id_,
             )
@@ -186,6 +181,20 @@ class Address(HashableModel):
             # both are ints, or both are tuples of ints.
             # and both of these are comparable.
             return self.value < other.value  # type: ignore
+
+
+def _addr_sort_key(a: Address) -> tuple:
+    """
+    Canonical, comparable sort key for an Address.
+
+    We don't rely on Address.__lt__ here because it returns True for
+    NO_ADDRESS < NO_ADDRESS, which breaks strict weak ordering for sort.
+    """
+    if a.value is None:
+        return (a.type.value, ())
+    if isinstance(a.value, int):
+        return (a.type.value, (a.value,))
+    return (a.type.value, tuple(a.value))
 
 
 class GlobalFeature(HashableModel):
@@ -370,6 +379,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
                 feature=feature_from_capa(feature),
             )
         )
+    global_features.sort(key=lambda gf: gf.feature.model_dump_json())
 
     file_features: list[FileFeature] = []
     for feature, address in extractor.extract_file_features():
@@ -379,6 +389,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
                 address=Address.from_capa(address),
             )
         )
+    file_features.sort(key=lambda ff: (_addr_sort_key(ff.address), ff.feature.model_dump_json()))
 
     function_features: list[FunctionFeatures] = []
     for f in extractor.get_functions():
@@ -391,6 +402,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
             )
             for feature, addr in extractor.extract_function_features(f)
         ]
+        ffeatures.sort(key=lambda ff: (_addr_sort_key(ff.address), ff.feature.model_dump_json()))
 
         basic_blocks = []
         for bb in extractor.get_basic_blocks(f):
@@ -404,6 +416,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
                 # Mypy is unable to recognise `basic_block` as an argument due to alias
                 for feature, addr in extractor.extract_basic_block_features(f, bb)
             ]
+            bbfeatures.sort(key=lambda bf: (_addr_sort_key(bf.address), bf.feature.model_dump_json()))
 
             instructions = []
             for insn in extractor.get_instructions(f, bb):
@@ -416,6 +429,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
                     )
                     for feature, addr in extractor.extract_insn_features(f, bb, insn)
                 ]
+                ifeatures.sort(key=lambda i: (_addr_sort_key(i.address), i.feature.model_dump_json()))
 
                 instructions.append(
                     InstructionFeatures(
@@ -426,7 +440,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
 
             # sort by address so regeneration is obviously idempotent regardless of
             # any per-extractor iteration quirks.
-            instructions.sort(key=lambda i: i.address)
+            instructions.sort(key=lambda i: _addr_sort_key(i.address))
             basic_blocks.append(
                 BasicBlockFeatures(
                     address=bbaddr,
@@ -435,7 +449,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
                 )
             )
 
-        basic_blocks.sort(key=lambda bb: bb.address)
+        basic_blocks.sort(key=lambda bb: _addr_sort_key(bb.address))
         function_features.append(
             FunctionFeatures(
                 address=faddr,
@@ -445,7 +459,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
             # Mypy is unable to recognise `basic_blocks` as an argument due to alias
         )
 
-    function_features.sort(key=lambda ff: ff.address)
+    function_features.sort(key=lambda ff: _addr_sort_key(ff.address))
 
     features = StaticFeatures(
         global_=global_features,
@@ -481,6 +495,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                 feature=feature_from_capa(feature),
             )
         )
+    global_features.sort(key=lambda gf: gf.feature.model_dump_json())
 
     file_features: list[FileFeature] = []
     for feature, address in extractor.extract_file_features():
@@ -490,6 +505,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                 address=Address.from_capa(address),
             )
         )
+    file_features.sort(key=lambda ff: (_addr_sort_key(ff.address), ff.feature.model_dump_json()))
 
     process_features: list[ProcessFeatures] = []
     for p in extractor.get_processes():
@@ -503,6 +519,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
             )
             for feature, addr in extractor.extract_process_features(p)
         ]
+        pfeatures.sort(key=lambda pf: (_addr_sort_key(pf.address), pf.feature.model_dump_json()))
 
         threads = []
         for t in extractor.get_threads(p):
@@ -516,6 +533,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                 # Mypy is unable to recognise `basic_block` as an argument due to alias
                 for feature, addr in extractor.extract_thread_features(p, t)
             ]
+            tfeatures.sort(key=lambda tf: (_addr_sort_key(tf.address), tf.feature.model_dump_json()))
 
             calls = []
             for call in extractor.get_calls(p, t):
@@ -529,6 +547,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                     )
                     for feature, addr in extractor.extract_call_features(p, t, call)
                 ]
+                cfeatures.sort(key=lambda cf: (_addr_sort_key(cf.address), cf.feature.model_dump_json()))
 
                 calls.append(
                     CallFeatures(
@@ -540,7 +559,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
 
             # sort by address so regeneration is obviously idempotent regardless of
             # any per-extractor iteration quirks.
-            calls.sort(key=lambda c: c.address)
+            calls.sort(key=lambda c: _addr_sort_key(c.address))
             threads.append(
                 ThreadFeatures(
                     address=taddr,
@@ -549,7 +568,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                 )
             )
 
-        threads.sort(key=lambda t: t.address)
+        threads.sort(key=lambda t: _addr_sort_key(t.address))
         process_features.append(
             ProcessFeatures(
                 address=paddr,
@@ -559,7 +578,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
             )
         )
 
-    process_features.sort(key=lambda pf: pf.address)
+    process_features.sort(key=lambda pf: _addr_sort_key(pf.address))
 
     features = DynamicFeatures(
         global_=global_features,
@@ -762,7 +781,7 @@ def main(argv=None):
 
 
 def _git_head_commit() -> str:
-    """Return the short HEAD commit, or empty string if this isn't a git checkout."""
+    """Return the HEAD commit, or empty string if this isn't a git checkout."""
     import subprocess
 
     try:

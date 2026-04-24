@@ -72,11 +72,5 @@ class Manifest(BaseModel):
     snapshots: list[FeatureSnapshot]
 
     @classmethod
-    def load(cls, path: Path = MANIFEST_PATH) -> "Manifest":
+    def from_file(cls, path: Path = MANIFEST_PATH) -> "Manifest":
         return cls.model_validate_json(path.read_text(encoding="utf-8"))
-
-    def save(self, path: Path = MANIFEST_PATH) -> None:
-        path.write_text(
-            self.model_dump_json(indent=4, exclude_none=True) + "\n",
-            encoding="utf-8",
-        )
