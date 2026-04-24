@@ -42,20 +42,15 @@ Backends/formats currently covered:
 | fixture          | backend    | format           |
 |------------------|------------|------------------|
 | `pma01-01-dll`   | viv        | PE 32-bit DLL    |
-| `pma16-01-exe`   | viv        | PE 32-bit EXE    |
+| `mimikatz-exe`   | viv        | PE 32-bit EXE    |
 | `pma21-01-exe`   | viv        | PE 64-bit EXE    |
 | `7351f-elf`      | viv        | ELF              |
-| `2bf18d-elf`     | viv        | ELF (alternate)  |
-| `499c2-sc32`     | viv        | 32-bit shellcode |
 | `1c444-dotnet`   | dotnet     | .NET             |
 
 Backends deliberately **not** covered here today (they need external dependencies or sample
 material that's not universally available, and can be added later if justified): BinExport2,
-IDA idalib, Binary Ninja, and the dynamic sandbox formats (CAPE, DRAKVUF, VMRay).
-
-Big samples like `mimikatz.exe_` and `kernel32.dll_` were tried first but produced multi-MB
-freezes that bloat the repository without adding regression-detection value beyond the
-smaller PE fixtures.
+IDA idalib, Binary Ninja, and the dynamic sandbox formats (CAPE, DRAKVUF, VMRay). Raw
+shellcode is uncommon in practice and not covered.
 
 ## regenerating a fixture after an intentional change
 

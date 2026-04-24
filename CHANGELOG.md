@@ -4,8 +4,8 @@
 
 ### New Features
 - ci: add support for arm64 binary releases
-- tests: add feature snapshot tests. Regenerates per-sample freeze files and compares them byte-for-byte with committed fixtures under `tests/fixtures/snapshots/features/`, so unintended changes to extractors surface as a test failure with a feature-count delta and unified diff. See `tests/fixtures/snapshots/features/README.md`.
-- freeze: add `--reproducible` flag to `python -m capa.features.freeze` that zeros out dynamic header metadata (e.g. the embedded capa version) so output is stable across capa version bumps. Used by the feature snapshot tests. The CLI also logs a ready-to-paste manifest entry at INFO level.
+- tests: add feature snapshot tests that byte-compare regenerated freezes against committed fixtures under `tests/fixtures/snapshots/features/` to catch unintended extractor changes
+- freeze: add `--reproducible` flag that zeros dynamic header metadata so freeze output is stable across capa versions
 
 ### Breaking Changes
 

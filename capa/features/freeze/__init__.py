@@ -424,6 +424,9 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
                     )
                 )
 
+            # sort by address so regeneration is obviously idempotent regardless of
+            # any per-extractor iteration quirks.
+            instructions.sort(key=lambda i: i.address)
             basic_blocks.append(
                 BasicBlockFeatures(
                     address=bbaddr,
@@ -432,6 +435,7 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
                 )
             )
 
+        basic_blocks.sort(key=lambda bb: bb.address)
         function_features.append(
             FunctionFeatures(
                 address=faddr,
@@ -440,6 +444,8 @@ def dumps_static(extractor: StaticFeatureExtractor, *, reproducible: bool = Fals
             )  # type: ignore
             # Mypy is unable to recognise `basic_blocks` as an argument due to alias
         )
+
+    function_features.sort(key=lambda ff: ff.address)
 
     features = StaticFeatures(
         global_=global_features,
@@ -532,6 +538,9 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                     )
                 )
 
+            # sort by address so regeneration is obviously idempotent regardless of
+            # any per-extractor iteration quirks.
+            calls.sort(key=lambda c: c.address)
             threads.append(
                 ThreadFeatures(
                     address=taddr,
@@ -540,6 +549,7 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                 )
             )
 
+        threads.sort(key=lambda t: t.address)
         process_features.append(
             ProcessFeatures(
                 address=paddr,
@@ -548,6 +558,8 @@ def dumps_dynamic(extractor: DynamicFeatureExtractor, *, reproducible: bool = Fa
                 threads=tuple(threads),
             )
         )
+
+    process_features.sort(key=lambda pf: pf.address)
 
     features = DynamicFeatures(
         global_=global_features,

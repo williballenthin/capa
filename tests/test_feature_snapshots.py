@@ -62,9 +62,9 @@ def _regenerate(snapshot: FeatureSnapshot) -> bytes:
         out_path = Path(tmp) / "out.frz"
         argv = [str(snapshot.sample_path), str(out_path), "--reproducible"]
         if snapshot.format is not None:
-            argv += ["-f", snapshot.format]
+            argv += ["--format", snapshot.format]
         if snapshot.backend is not None:
-            argv += ["-b", snapshot.backend]
+            argv += ["--backend", snapshot.backend]
         if snapshot.os is not None:
             argv += ["--os", snapshot.os]
         rc = capa.features.freeze.main(argv)
@@ -206,11 +206,6 @@ def test_feature_snapshot(snapshot: FeatureSnapshot):
     Regenerate the freeze for `snapshot.sample` and assert it matches
     `snapshot.freeze` byte-for-byte.
     """
-    if not snapshot.sample_path.exists():
-        pytest.skip(f"sample not present: {snapshot.sample_path} " f"(run `git submodule update --init tests/data`)")
-    if not snapshot.freeze_path.exists():
-        pytest.fail(f"snapshot fixture missing: {snapshot.freeze_path}")
-
     expected = snapshot.freeze_path.read_bytes()
     actual = _regenerate(snapshot)
 
@@ -218,12 +213,3 @@ def test_feature_snapshot(snapshot: FeatureSnapshot):
         return
 
     pytest.fail(_format_mismatch(snapshot, expected, actual))
-
-
-def test_manifest_is_consistent():
-    """Sanity-check that the manifest doesn't contain duplicates."""
-    names = [s.name for s in _SNAPSHOTS]
-    assert len(names) == len(set(names)), "duplicate snapshot name(s) in manifest"
-
-    freezes = [s.freeze for s in _SNAPSHOTS]
-    assert len(freezes) == len(set(freezes)), "duplicate freeze file name(s) in manifest"

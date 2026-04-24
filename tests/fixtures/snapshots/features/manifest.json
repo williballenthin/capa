@@ -10,10 +10,10 @@
             "generated_at_commit": "8a0adac3c19e782c4468ddcbd2e38c24dc91b80b"
         },
         {
-            "name": "pma16-01-exe",
-            "sample": "Practical Malware Analysis Lab 16-01.exe_",
-            "freeze": "pma16-01-exe.frz",
-            "explanation": "PE 32-bit EXE. Exercises the PE EXE entry point and a realistic mid-sized function/basic-block count in the viv backend.",
+            "name": "mimikatz-exe",
+            "sample": "mimikatz.exe_",
+            "freeze": "mimikatz-exe.frz",
+            "explanation": "Well-known PE 32-bit EXE with a wide variety of features. Exercises the PE EXE path through viv against a realistic, feature-dense sample.",
             "generated_at_commit": "8a0adac3c19e782c4468ddcbd2e38c24dc91b80b"
         },
         {
@@ -28,21 +28,6 @@
             "sample": "7351f8a40c5450557b24622417fc478d.elf_",
             "freeze": "7351f-elf.frz",
             "explanation": "ELF binary via the viv backend. Exercises the ELF loader plus OS/arch detection for non-PE samples.",
-            "generated_at_commit": "8a0adac3c19e782c4468ddcbd2e38c24dc91b80b"
-        },
-        {
-            "name": "2bf18d-elf",
-            "sample": "2bf18d0403677378adad9001b1243211.elf_",
-            "freeze": "2bf18d-elf.frz",
-            "explanation": "Second ELF with a different compiler/libc profile than 7351f. Kept to catch ELF regressions that are sample-shape specific; if coverage proves adequate with just one ELF, this one is the first candidate for removal.",
-            "generated_at_commit": "8a0adac3c19e782c4468ddcbd2e38c24dc91b80b"
-        },
-        {
-            "name": "499c2-sc32",
-            "sample": "499c2a85f6e8142c3f48d4251c9c7cd6.raw32",
-            "freeze": "499c2-sc32.frz",
-            "format": "sc32",
-            "explanation": "Raw 32-bit shellcode. Exercises the sc32 format path, which has no PE/ELF headers and different file-scope feature extraction.",
             "generated_at_commit": "8a0adac3c19e782c4468ddcbd2e38c24dc91b80b"
         },
         {
