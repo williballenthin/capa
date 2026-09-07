@@ -46,7 +46,7 @@ def extract_function_symtab_names(
                 sym_info = symbol.info
 
                 STT_FUNC = 0x2
-                if sym_value == fh.address and sym_info & STT_FUNC != 0:
+                if sym_name and sym_value == fh.address and sym_info & STT_FUNC != 0:
                     yield FunctionName(sym_name), fh.address
 
 

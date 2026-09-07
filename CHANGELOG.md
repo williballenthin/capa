@@ -26,6 +26,8 @@
 -
 
 ### Bug Fixes
+- fix: elffile: don't crash on an ELF whose hash table has been stripped while its dynamic tag remains @williballenthin #3170
+- fix: elffile: recover the dynamic symbols that a truncated or removed hash table used to hide @williballenthin #3170
 - fix: freeze: omit null description fields from freeze JSON @SkxOverKill #3100
 - fix lots of linter errors identified by pyright @williballenthin #3052
 - fix: render_default always returns empty string @williballenthin #3012

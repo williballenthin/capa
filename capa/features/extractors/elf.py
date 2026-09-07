@@ -777,15 +777,24 @@ class SymTab:
         """
         fetch a symbol's name from symtab's
         associated strings' section (SHT_STRTAB)
+
+        returns an empty string when the name can't be recovered, such as when the
+        symbol's name offset points outside the string table. corrupt files do this,
+        and it shouldn't cost us the features of every other symbol in the table.
         """
         if not self.strtab:
-            raise ValueError("no strings found")
+            return ""
 
-        for i in range(symbol.name_offset, self.strtab.size):
-            if self.strtab.buf[i] == 0:
-                return self.strtab.buf[symbol.name_offset : i].decode("utf-8")
+        name, _, terminator = self.strtab.buf[symbol.name_offset : self.strtab.size].partition(b"\x00")
+        if not terminator:
+            # the name isn't NULL terminated within the string table,
+            # so this isn't a name at all.
+            return ""
 
-        raise ValueError("symbol name not found")
+        try:
+            return name.decode("utf-8")
+        except UnicodeDecodeError:
+            return ""
 
     def get_symbols(self) -> Iterator[Symbol]:
         """
@@ -1670,4 +1679,12 @@ def detect_elf_os(f) -> str:
 
 
 def detect_elf_arch(f: BinaryIO) -> str:
-    return ELF(f).e_machine or "unknown"
+    try:
+        elf = ELF(f)
+    except Exception as e:
+        # like `detect_elf_os`: a file we can't parse is a file we can't guess about,
+        # and that's not a reason to abort the run.
+        logger.warning("Error parsing ELF file: %s", e)
+        return "unknown"
+
+    return elf.e_machine or "unknown"

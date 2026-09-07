@@ -120,7 +120,7 @@ def extract_insn_api_features(fh: FunctionHandle, bb, ih: InsnHandle) -> Iterato
                     sym_info = symbol.info
 
                     STT_FUNC = 0x2
-                    if sym_value == target and sym_info & STT_FUNC != 0:
+                    if sym_name and sym_value == target and sym_info & STT_FUNC != 0:
                         yield API(sym_name), ih.address
 
         if viv_utils.flirt.is_library_function(f.vw, target):
